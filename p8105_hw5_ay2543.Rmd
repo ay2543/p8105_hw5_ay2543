@@ -5,6 +5,11 @@ date: "2022-11-09"
 output: github_document
 ---
 
+```{r, include = FALSE}
+library(tidyverse)
+library(p8105.datasets)
+```
+
 
 ## Problem 1
 
@@ -30,6 +35,36 @@ For the city of Baltimore, MD, use the prop.test function to estimate the propor
 Now run prop.test for each of the cities in your dataset, and extract both the proportion of unsolved homicides and the confidence interval for each. Do this within a “tidy” pipeline, making use of purrr::map, purrr::map2, list columns and unnest as necessary to create a tidy dataframe with estimated proportions and CIs for each city.
 
 Create a plot that shows the estimates and CIs for each city – check out geom_errorbar for a way to add error bars based on the upper and lower limits. Organize cities according to the proportion of unsolved homicides.
+
+First, import the raw homicide dataset:
+
+```{r}
+homicide = read_csv("homicide-data.csv")
+```
+
+The raw data has **`r nrow(homicide)` observations and `r ncol(homicide)` variables**.
+
+The variable names are *`r colnames(homicide)`*.
+
+Next, do some cleaning:
+
+```{r}
+homicide_summ = homicide %>% 
+  mutate(city_state = str_c(city, ", ", state)) %>% 
+  group_by(city_state, disposition) %>% 
+  summarize(n_homicides = n()) %>% 
+  pivot_wider(names_from = disposition,
+              values_from = n_homicides) %>% 
+  janitor::clean_names() %>% 
+  mutate(
+    n_homicides = sum(closed_by_arrest, closed_without_arrest, open_no_arrest, na.rm = TRUE),
+    n_unsolved = sum(closed_without_arrest, open_no_arrest, na.rm = TRUE)
+  ) %>% 
+  select(city_state, n_homicides, n_unsolved)
+
+
+```
+
 
 ## Problem 3
 
