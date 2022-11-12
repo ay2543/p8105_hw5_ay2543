@@ -7,7 +7,7 @@ output: github_document
 
 ```{r, include = FALSE}
 library(tidyverse)
-library(p8105.datasets)
+library(purrr)
 ```
 
 
@@ -68,17 +68,35 @@ homicide_summ = homicide %>%
 
 Now, do a `prop.test` on Baltimore, MD:
 ```{r}
-prop_baltimore = prop.test(x = 
-                             homicide_summ %>% 
+prop_baltimore = prop.test(x = homicide_summ %>% 
                              filter(city_state == "Baltimore, MD") %>% 
                              pull(n_unsolved), 
                            n = homicide_summ %>% 
                              filter(city_state == "Baltimore, MD") %>% 
-                             pull(n_homicides)) 
+                             pull(n_homicides)) %>% broom::tidy() %>% select(estimate, conf.low, conf.high)
 
-prop_baltimore %>% broom::tidy() %>% select(estimate, conf.low, conf.high)
+prop_baltimore
 
 ```
+
+Now run prop.test for each of the cities in your dataset, and extract both the proportion of unsolved homicides and the confidence interval for each. Do this within a “tidy” pipeline, making use of purrr::map, purrr::map2, list columns and unnest as necessary to create a tidy dataframe with estimated proportions and CIs for each city.
+
+```{r}
+
+
+homicide_prop = homicide_summ %>% 
+  mutate( 
+    prop_test = map2(.x = n_unsolved, .y = n_homicides, ~prop.test(x = .x, n = .y)),
+    prop_output = map(prop_test, ~broom::tidy())
+    ) %>% 
+  select(-prop_test) %>% 
+  unnest(prop_output)
+
+
+```
+
+
+Create a plot that shows the estimates and CIs for each city – check out geom_errorbar for a way to add error bars based on the upper and lower limits. Organize cities according to the proportion of unsolved homicides.
 
 
 ## Problem 3
