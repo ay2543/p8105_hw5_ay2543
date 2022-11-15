@@ -87,7 +87,7 @@ Now run prop.test for each of the cities in your dataset, and extract both the p
 homicide_prop = homicide_summ %>% 
   mutate( 
     prop_test = map2(.x = n_unsolved, .y = n_homicides, ~prop.test(x = .x, n = .y)),
-    prop_output = map(prop_test, ~broom::tidy())
+    prop_output = map(.x = prop_test, ~broom::tidy(.x))
     ) %>% 
   select(-prop_test) %>% 
   unnest(prop_output)
