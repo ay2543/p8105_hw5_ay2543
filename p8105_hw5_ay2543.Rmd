@@ -139,7 +139,7 @@ test_results = t.test(sample)
 
 test_results %>% 
   broom::tidy() %>% 
-  select(estimate, p.value)
+  select(estimate, p.value) 
   
 }
 
@@ -169,15 +169,41 @@ sim_t_murange = function(murange) {
   }
   
   sim_mu = sim_mu %>% 
-    bind_rows()
+    bind_rows() %>% 
+    mutate(null_reject = ifelse(p.value < 0.05, 1, 0))
   
   sim_mu
 }
 
-map(.x = 0:6, ~sim_t_murange(murange = .x))
+sim_range_df = tibble(
+  mu = 0:6,
+  t_test = map(.x = 0:6, ~sim_t_murange(murange = .x))
+  ) %>% 
+  unnest(t_test)
 
 ```
 
+
+```{r}
+power_df = sim_range_df %>% 
+  group_by(mu) %>% 
+  summarize(prop_reject = sum(null_reject)/5000)
+
+power_plot = power_df %>% 
+  ggplot(aes(x = mu, y = prop_reject)) +
+  geom_point() +
+  geom_line() +
+  scale_x_continuous(breaks = seq(0, 6, 1)) +
+  theme_classic() +
+  labs(
+    x = "True value of μ",
+    y = "Proportion of times the null was rejected (the power of the test)",
+    title = "Power of t test by values of μ"
+  )
+
+power_plot
+```
+Here, we can see that as μ increases from 0 to 4, the power increases, and then plateaus as μ goes from 4 to 6, as the power is almost 1. We can conclude that larger effect size is positively associated with the power of the t test.
 
 ```{r}
 expand_grid(
