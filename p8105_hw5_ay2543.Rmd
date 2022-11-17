@@ -11,31 +11,54 @@ library(purrr)
 library(patchwork)
 ```
 
-
 ## Problem 1
 
-This zip file contains data from a longitudinal study that included a control arm and an experimental arm. Data for each participant is included in a separate file, and file names include the subject ID and arm.
+The code chunk below imports the data in individual spreadsheets contained in `./data/zip_data/`. To do this, I create a dataframe that includes the list of all files in that directory and the complete path to each file. As a next step, I `map` over paths and import data using the `read_csv` function. Finally, I `unnest` the result of `map`.
 
-Create a tidy dataframe containing data from all participants, including the subject ID, arm, and observations over time:
+```{r}
+full_df = 
+  tibble(
+    files = list.files("data/"),
+    path = str_c("data/", files)
+  ) %>% 
+  mutate(data = map(path, read_csv)) %>% 
+  unnest()
+```
 
-Start with a dataframe containing all file names; the list.files function will help
-Iterate over file names and read in data for each subject using purrr::map and saving the result as a new variable in the dataframe
-Tidy the result; manipulate file names to include control arm and subject ID, make sure weekly observations are “tidy”, and do any other tidying that’s necessary
-Make a spaghetti plot showing observations on each subject over time, and comment on differences between groups.
+The result of the previous code chunk isn't tidy -- data are wide rather than long, and some important variables are included as parts of others. The code chunk below tides the data using string manipulations on the file, converting from wide to long, and selecting relevant variables. 
+
+```{r}
+tidy_df = 
+  full_df %>% 
+  mutate(
+    files = str_replace(files, ".csv", ""),
+    group = str_sub(files, 1, 3)) %>% 
+  pivot_longer(
+    week_1:week_8,
+    names_to = "week",
+    values_to = "outcome",
+    names_prefix = "week_") %>% 
+  mutate(week = as.numeric(week)) %>% 
+  select(group, subj = files, week, outcome)
+```
+
+Finally, the code chunk below creates a plot showing individual data, faceted by group. 
+
+```{r}
+tidy_df %>% 
+  ggplot(aes(x = week, y = outcome, group = subj, color = group)) + 
+  geom_point() + 
+  geom_path() + 
+  facet_grid(~group)
+```
+
+This plot suggests high within-subject correlation -- subjects who start above average end up above average, and those that start below average end up below average. Subjects in the control group generally don't change over time, but those in the experiment group increase their outcome in a roughly linear way. 
+
+
 
 
 
 ## Problem 2
-
-The Washington Post has gathered data on homicides in 50 large U.S. cities and made the data available through a GitHub repository here. You can read their accompanying article here.
-
-Describe the raw data. Create a city_state variable (e.g. “Baltimore, MD”) and then summarize within cities to obtain the total number of homicides and the number of unsolved homicides (those for which the disposition is “Closed without arrest” or “Open/No arrest”).
-
-For the city of Baltimore, MD, use the prop.test function to estimate the proportion of homicides that are unsolved; save the output of prop.test as an R object, apply the broom::tidy to this object and pull the estimated proportion and confidence intervals from the resulting tidy dataframe.
-
-Now run prop.test for each of the cities in your dataset, and extract both the proportion of unsolved homicides and the confidence interval for each. Do this within a “tidy” pipeline, making use of purrr::map, purrr::map2, list columns and unnest as necessary to create a tidy dataframe with estimated proportions and CIs for each city.
-
-Create a plot that shows the estimates and CIs for each city – check out geom_errorbar for a way to add error bars based on the upper and lower limits. Organize cities according to the proportion of unsolved homicides.
 
 First, import the raw homicide dataset:
 
@@ -80,7 +103,7 @@ prop_baltimore
 
 ```
 
-Now run prop.test for each of the cities in your dataset, and extract both the proportion of unsolved homicides and the confidence interval for each. Do this within a “tidy” pipeline, making use of purrr::map, purrr::map2, list columns and unnest as necessary to create a tidy dataframe with estimated proportions and CIs for each city.
+Now run `prop.test` for each of the cities in the dataset, and extract both the proportion of unsolved homicides and the confidence interval for each into a tidy dataframe.
 
 ```{r}
 
@@ -97,7 +120,7 @@ homicide_prop = homicide_summ %>%
 ```
 
 
-Create a plot that shows the estimates and CIs for each city – check out geom_errorbar for a way to add error bars based on the upper and lower limits. Organize cities according to the proportion of unsolved homicides.
+Finally, create a plot that shows the estimates and CIs for each city with `ggplot()`.
 
 ```{r}
 homicide_plot = homicide_prop %>% 
@@ -120,18 +143,7 @@ homicide_plot = homicide_prop %>%
 
 ## Problem 3
 
-When designing an experiment or analysis, a common question is whether it is likely that a true effect will be detected – put differently, whether a false null hypothesis will be rejected. The probability that a false null hypothesis is rejected is referred to as power, and it depends on several factors, including: the sample size; the effect size; and the error variance. In this problem, you will conduct a simulation to explore power in a one-sample t-test.
-
-First set the following design elements:
-
-Fix n=30
-Fix σ=5
-Set μ=0. Generate 5000 datasets from the model
-
-x∼Normal[μ,σ]
-
-For each dataset, save μ̂  and the p-value arising from a test of H:μ=0 using α=0.05. Hint: to obtain the estimate and p-value, use broom::tidy to clean the output of t.test.
-
+First, create a `sim_t_test` function to select the estimate and p-value (using `broom::tidy()`) from a `t.test` of a sample with defined design elements: n=30, σ=5, μ=0. Use a for loop to create 5000 datasets from the function, and use `bind_rows` to combine everything into a dataset.
 ```{r}
 sim_t_test = function(n = 30, mu = 0, sigma = 5) {
 sample = rnorm(n, mean = mu, sd = sigma)
@@ -159,7 +171,7 @@ sim_df
 ```
 
 
-Second function to get dataframe for a range of values
+Next, create a second `sim_t_murange` function, to conduct the sim_t_test over a range of values of μ, added a variable indicating the power of the test (either rejecting or failing to reject the null hypothesis depending on the p-value), and creating a table of the μ and the simulated t tests (each with 5000 iterations).
 ```{r}
 
 sim_t_murange = function(murange) {
@@ -185,6 +197,7 @@ sim_range_df = tibble(
 ```
 
 
+Next, look at the association between effect size and power. Use `group_by` and `summarize` to create a separate dataframe with power by μ. The visualize with `ggplot`.
 ```{r}
 power_df = sim_range_df %>% 
   group_by(mu) %>% 
@@ -207,6 +220,7 @@ power_plot
 Here, we can see that as μ increases from 0 to 4, the power increases, and then plateaus as μ goes from 4 to 6, as the power is almost 1. We can conclude that larger effect size is positively associated with the power of the t test.
 
 
+Then, look at the association between effect size and power. Use `group_by` and `summarize` to create a separate dataframe with effect size and power. Then visualize with `ggplot`.
 ```{r}
 estimate_df = sim_range_df %>% 
   group_by(mu) %>% 
@@ -228,6 +242,7 @@ estimate_plot = estimate_df %>%
 estimate_plot
 ```
 
+Then, look at the association between average estimated μ̂ and μ. Use `group_by` and `summarize` to create a separate dataframe with μ̂ by μ. Then visualize with `ggplot`.
 ```{r}
 estimate_df_reject = sim_range_df %>% 
   filter(null_reject == 1) %>% 
@@ -260,13 +275,6 @@ estimate_power_plot
 * μ̂ for which the null is rejected is less accurate at lower levels because it is taking the average of less test estimates 
 * As μ increases, more estimates are being rejected, so μ̂ is closer to μ.
 
-This is because as the true value of μ (the effect size) increases, the power of the test also increases. Since the power of the test is the proportion of times the null is rejected, a lower power for smaller μ’s would mean that the test rejects the null less for smaller μ’s. This means that (looking at the average μ^ across tests where the null is rejected) we are taking the average across less samples when μ is small, meaning a greater error in the estimates.
-This in turn leads to the observed difference between the sample average of μ̂ across tests for which the null is rejected vs. the true value of μ.
-
-Repeat the above for μ={1,2,3,4,5,6}, and complete the following:
-
-Make a plot showing the proportion of times the null was rejected (the power of the test) on the y axis and the true value of μ on the x axis. Describe the association between effect size and power.
-Make a plot showing the average estimate of μ̂  on the y axis and the true value of μ on the x axis. Make a second plot (or overlay on the first) the average estimate of μ̂  only in samples for which the null was rejected on the y axis and the true value of μ on the x axis. Is the sample average of μ̂  across tests for which the null is rejected approximately equal to the true value of μ? Why or why not?
 
 
 
