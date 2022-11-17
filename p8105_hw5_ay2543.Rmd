@@ -38,7 +38,7 @@ Create a plot that shows the estimates and CIs for each city – check out geom_
 
 First, import the raw homicide dataset:
 
-```{r}
+```{r, message = FALSE}
 homicide = read_csv("homicide-data.csv")
 ```
 
@@ -89,14 +89,32 @@ homicide_prop = homicide_summ %>%
     prop_test = map2(.x = n_unsolved, .y = n_homicides, ~prop.test(x = .x, n = .y)),
     prop_output = map(.x = prop_test, ~broom::tidy(.x))
     ) %>% 
-  select(-prop_test) %>% 
-  unnest(prop_output)
+  unnest(prop_output) %>% 
+  select(n_homicides, n_unsolved, estimate, conf.low, conf.high)
 
 
 ```
 
 
 Create a plot that shows the estimates and CIs for each city – check out geom_errorbar for a way to add error bars based on the upper and lower limits. Organize cities according to the proportion of unsolved homicides.
+
+```{r}
+homicide_plot = homicide_prop %>% 
+  ggplot(aes(x = fct_reorder(city_state, estimate))) +
+  geom_point(aes(y = estimate)) +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high)) +
+  theme_classic() +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5)
+  ) + 
+  labs(
+    x = "City",
+    y = "Proportion of unsolved homicides",
+    title = "Proportion of unsolved homicides by city",
+    caption = "Tulsa, AL has 1 homicide and 0 unsolved homicides"
+  )
+```
+
 
 
 ## Problem 3
